@@ -40,8 +40,8 @@ def get_sampler(ddp, dataset):
 
 class BaseRunner(ABC):
     def __init__(self, cfg):
-        if torch.backends.cudnn.version() < 8000:
-            torch.backends.cudnn.benchmark = True
+        # if torch.backends.cudnn.version() < 8000:
+            # torch.backends.cudnn.benchmark = True
         self.model = MODELS.from_dict(cfg['model'])
 
     @abstractmethod
