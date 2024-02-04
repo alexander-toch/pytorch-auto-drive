@@ -138,8 +138,8 @@ def lane_detection_visualize_batched(images, masks=None, keypoints=None,
                 if gt_keypoints is not None:
                     overlay = draw_points_as_lines(overlay, gt_keypoints[i], BGR_BLUE)
                 overlay = draw_points_as_lines(overlay, keypoints[i], keypoint_color)
-                images[i] = (images[i].astype(np.float) * line_trans +
-                             overlay.astype(np.float) * (1 - line_trans)).astype(np.uint8)
+                images[i] = (images[i].astype(float) * line_trans +
+                             overlay.astype(float) * (1 - line_trans)).astype(np.uint8)
                 if style == 'bezier':
                     assert control_points is not None, 'Must provide control points for style bezier!'
                     images[i] = draw_points(images[i], control_points[i], keypoint_color)

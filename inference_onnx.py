@@ -6,24 +6,21 @@ import torch
 from PIL import Image
 import numpy as np
 from time import perf_counter
-from utils.lane_det_utils import prob_to_lines
+from utils.lane_det_utils import lane_as_segmentation_inference, prob_to_lines
 from utils.models.lane_detection.utils import lane_pruning
 from utils.models import MODELS
+from utils.transforms import functional as F
+from utils.vis_utils import lane_detection_visualize_batched, save_images
 
-BENCHMARK = False
+BENCHMARK = True
 
 # from configs/lane_detection/resa/resnet50_culane.py
-input_sizes = (360, 640)
-orig_sizes = (720, 1280)
-max_lane = 6
+input_sizes = (360, 640)  # defined in the pretrained model
+max_lane = 4
 gap = 10
 ppl = 56
 thresh = 0.3
 dataset = "llamas"
-
-
-def tensor_image_to_numpy(images):
-    return (images * 255.0).cpu().numpy().astype(np.uint8)
 
 
 def run():
@@ -33,96 +30,59 @@ def run():
 
     time_start = perf_counter()
 
-    img = cv2.imread(img_path)
-    img = cv2.resize(img, input_sizes).astype(np.float32)
-    height, width = img.shape[:2]
+    image = Image.open(img_path).convert("RGB")
 
+    orig_sizes = (image.height, image.width)
+    original_img = F.to_tensor(image).clone().unsqueeze(0)
+    image = F.resize(image, size=input_sizes)
+
+    model_in = torch.ByteTensor(torch.ByteStorage.from_buffer(image.tobytes()))
+
+    model_in = model_in.view(image.size[1], image.size[0], len(image.getbands()))
+    model_in = (
+        model_in.permute((2, 0, 1)).contiguous().float().div(255).unsqueeze(0).numpy()
+    )
     if BENCHMARK:
-        print(f"Image resize took {perf_counter() - time_start} seconds")
+        print(f"Image preprocessing took {perf_counter() - time_start} seconds")
 
     ort_sess = ort.InferenceSession(
         "../resnet50_resa_tusimple_20211019.onnx",
         providers=ort.get_available_providers(),
     )
-    input = img.reshape(1, 3, input_sizes[0], input_sizes[1])
-
-    model = dict(
-        name="RESA_Net",
-        backbone_cfg=dict(
-            name="predefined_resnet_backbone",
-            backbone_name="resnet50",
-            return_layer="layer3",
-            pretrained=True,
-            replace_stride_with_dilation=[False, True, True],
-        ),
-        reducer_cfg=dict(name="RESAReducer", in_channels=1024, reduce=128),
-        spatial_conv_cfg=dict(name="RESA", num_channels=128, iteration=5, alpha=2.0),
-        classifier_cfg=dict(name="BUSD", in_channels=128, num_classes=7),
-        lane_classifier_cfg=dict(
-            name="EDLaneExist",
-            num_output=7 - 1,
-            flattened_size=4400,
-            dropout=0.1,
-            pool="avg",
-        ),
-    )
-
-    pytorch_model = MODELS.from_dict(model)
-    pytorch_in = torch.FloatTensor(input)
-    pytorch_out = pytorch_model(pytorch_in)
 
     if BENCHMARK:
-        for i in range(100):
+        for _ in range(100):
             time_start = perf_counter()
-            outputs = ort_sess.run(
-                None, {"input1": input}
+            onnx_out = ort_sess.run(
+                None, {"input1": model_in}
             )  # TODO: set width and height dynamically
-            print(f"Inference took {perf_counter() - time_start} seconds")
+            print(f"Inference (model only) took {perf_counter() - time_start} seconds")
     else:
-        outputs = ort_sess.run(None, {"input1": input})
+        onnx_out = ort_sess.run(None, {"input1": model_in})
+    outputs = {"out": torch.Tensor(onnx_out[0]), "lane": torch.Tensor(onnx_out[1])}
 
-    print(len(outputs))
+    keypoints = lane_as_segmentation_inference(
+        None,
+        outputs,
+        [input_sizes, orig_sizes],
+        gap,
+        ppl,
+        thresh,
+        dataset,
+        max_lane,
+        forward=False,  # already called model
+    )
 
-    prob_map = torch.nn.functional.interpolate(
-        torch.FloatTensor(outputs[0]),
-        size=input_sizes,
-        mode="bilinear",
-        align_corners=True,
-    ).softmax(dim=1)
-    existence_conf = torch.FloatTensor(outputs[1]).sigmoid()
+    assert len(keypoints[0]) > 0, "No lanes detected"
+    keypoints = [[np.array(lane) for lane in image] for image in keypoints]
 
-    existence = existence_conf > 0.5
-    if max_lane != 0:  # Lane max number prior for testing
-        existence, existence_conf = lane_pruning(
-            existence, existence_conf, max_lane=max_lane
-        )
-    prob_map = prob_map.detach().cpu().numpy()
-    existence = existence.cpu().numpy()
+    results = lane_detection_visualize_batched(
+        original_img, keypoints=keypoints, style="point"
+    )
 
-    # Get coordinates for lanes
-    print(np.count_nonzero(torch.FloatTensor(prob_map[0]) > 0.5))
-    print(prob_map[0].shape)  # should be classes, height, width
-
-    lane_coordinates = [
-        prob_to_lines(
-            prob_map[0],
-            existence[0],
-            resize_shape=orig_sizes,
-            smooth=False,
-            gap=gap,
-            ppl=ppl,
-            thresh=thresh,
-            dataset=dataset,
-        )
-    ]
-
-    # print(lane_coordinates)
-
-    # TODO: prob_map is wrong, maube the ONNX conversion did not work properly
-
-    assert len(lane_coordinates[0]) > 0, "No lanes detected!"
-
-    keypoints = [[np.array(lane) for lane in image] for image in lane_coordinates]
+    cv2.imshow("Inferred image", results[0])
+    cv2.waitKey(5000)
+    save_images(results, ["./inference.png"])
 
 
 if __name__ == "__main__":
