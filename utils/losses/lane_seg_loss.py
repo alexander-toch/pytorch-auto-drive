@@ -3,7 +3,7 @@ from torch import Tensor
 from typing import Optional
 from torch.nn import functional as F
 
-from ._utils import WeightedLoss
+from ._utils import WeightedLoss, _Loss
 from .builder import LOSSES
 
 
@@ -33,7 +33,33 @@ class LaneLoss(WeightedLoss):
         return total_loss, {'training loss': total_loss, 'loss seg': segmentation_loss,
                             'loss exist': existence_loss}
 
+@LOSSES.register()
+class LaneLossSeg(_Loss):
+    __constants__ = ['ignore_index', 'reduction']
+    ignore_index: int
 
+    def __init__(self, existence_weight: float = 0.1, weight: Optional[Tensor] = None, size_average=None,
+                 ignore_index: int = -100, reduce=None, reduction: str = 'mean'):
+        super(LaneLossSeg, self).__init__(size_average, reduce, reduction)
+        self.weight = torch.Tensor(weight) if weight is not None else None
+        self.ignore_index = ignore_index
+       
+    def forward(self, inputs: Tensor, targets: Tensor, net):
+        # outputs = net(inputs)
+        prob_maps = torch.nn.functional.interpolate(inputs['out'], size=(288, 800), mode='bilinear', # TODO: set size dynamically
+                                                    align_corners=True)
+        
+        targets[targets > 5] = 255  # Ignore extra lanes TODO: set dynamically
+
+        print(f"prob_maps shape: {prob_maps.shape}")
+        print(f"targets shape: {targets.shape}")
+
+        segmentation_loss = F.cross_entropy(prob_maps, targets, weight=self.weight.cuda(),
+                                            reduction=self.reduction)
+
+        return segmentation_loss
+
+    
 # Loss function for SAD
 @LOSSES.register()
 class SADLoss(WeightedLoss):
