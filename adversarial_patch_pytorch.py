@@ -168,13 +168,19 @@ class MyAdversarialPatchPyTorch(AdversarialPatchPyTorch):
         :return: An array with adversarial patch and an array of the patch mask.
         """
         import torch
-        print(f"Device {self.estimator.device}")
 
         shuffle = kwargs.get("shuffle", True)
         mask = kwargs.get("mask")
         if mask is not None:
             mask = mask.copy()
         mask = self._check_mask(mask=mask, x=x)
+
+        # set initial value to cropped image area of patch shape and patch location
+        if self.patch_location is not None and self.patch_shape is not None:    
+
+            img = x[0].copy()
+            cropped = img[:, self.patch_location[1] : self.patch_location[1] + self.patch_shape[1], self.patch_location[0]: self.patch_location[0] + self.patch_shape[2]]
+            self.reset_patch(cropped)
 
         if self.patch_location is not None and mask is not None:
             raise ValueError("Masks can only be used if the `patch_location` is `None`.")

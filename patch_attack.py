@@ -85,11 +85,11 @@ def save_image(image, path, sizes=orig_sizes):
 
 print("Starting patch attack")
 from adversarial_patch_pytorch import MyAdversarialPatchPyTorch
-patch_size = (90,90)
-patch_location=(350,180) # use this with patch_location=(patch_location[0], patch_location[1]) OR mask
+patch_size = (95,95)
+patch_location=(350,190) # use this with patch_location=(patch_location[0], patch_location[1]) OR mask
 # mask = np.ones(shape=(1, input_size[0], input_size[1]), dtype=bool)
 attack = MyAdversarialPatchPyTorch(estimator=classifier, 
-                                   max_iter=2000, 
+                                   max_iter=1000, 
                                    patch_type='square', 
                                    patch_shape=(3, patch_size[0], patch_size[1]), 
                                    patch_location=patch_location,
