@@ -16,7 +16,7 @@ from .._utils import is_tracing
 
 try:
     from ...csrc.apis import line_nms
-    print('Successfully complied line nms for LaneATT.')
+    # print('Successfully complied line nms for LaneATT.')
 except:
     from ...common import warnings
     warnings.warn('Can\'t complie line nms op for LaneATT. Set verbose=True for load in /utils/csrc/apis.py L9 for details.')

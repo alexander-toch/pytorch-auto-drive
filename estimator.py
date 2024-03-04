@@ -57,6 +57,9 @@ class MyPyTorchClassifier(PyTorchClassifier):
         """
         import torch
 
+        print(f"sample input shape: {x.shape}")
+        print(f"y shape: {y.shape}")
+
         self._model.train(mode=training_mode)
 
         # Backpropagation through RNN modules in eval mode raises RuntimeError due to cudnn issues and require training
@@ -176,27 +179,30 @@ class MyPyTorchClassifier(PyTorchClassifier):
         """
         import torch
 
+        # x shape should be (batch_size, channels, height, width)
+        # y shape should be (batch_size, nb_classes, height, width)
+
         self._model.eval()
 
-        y = check_and_transform_label_format(y, self.nb_classes)  # type: ignore
+        # y = check_and_transform_label_format(y, self.nb_classes)  # type: ignore
 
         # Apply preprocessing
         x_preprocessed, y_preprocessed = self._apply_preprocessing(x, y, fit=False)
 
         # Check label shape
-        y_preprocessed = self.reduce_labels(y_preprocessed)
+        y = self.reduce_labels(y_preprocessed)
 
 
         if isinstance(x, torch.Tensor):
             inputs_t = x_preprocessed
-            labels_t = y_preprocessed
         else:
             # Convert the inputs to Tensors
             inputs_t = torch.from_numpy(x_preprocessed).to(self._device)
-            # Convert the labels to Tensors
-            if isinstance(y_preprocessed, np.ndarray):
-                labels_t = torch.from_numpy(y_preprocessed).to(self._device)
 
+        if isinstance(y, torch.Tensor):
+            y_grad = y.clone().detach()
+        else:
+            y_grad = torch.tensor(y).to(self._device)
 
         # Compute the loss and return
         model_outputs = self._model(inputs_t)
@@ -204,7 +210,7 @@ class MyPyTorchClassifier(PyTorchClassifier):
 
         # Return individual loss values
         self._loss.reduction = reduction
-        loss = self._loss(model_outputs[-1], labels_t, self._model)
+        loss = self._loss(model_outputs[-1], y_grad, self._model)
         self._loss.reduction = prev_reduction
 
         if isinstance(x, torch.Tensor):

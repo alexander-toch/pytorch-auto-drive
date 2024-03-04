@@ -43,6 +43,7 @@ if TYPE_CHECKING:
     from art.utils import CLASSIFIER_NEURALNETWORK_TYPE
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
 
 
 class MyAdversarialPatchPyTorch(AdversarialPatchPyTorch):
@@ -74,9 +75,9 @@ class MyAdversarialPatchPyTorch(AdversarialPatchPyTorch):
         import torch
 
         self.estimator.model.zero_grad()
+        
+        loss = self._loss(images, target, mask)
 
-        out = self.estimator.predict(x=images.cpu())
-        loss = self._loss(images, out, mask)
         loss.backward(retain_graph=True)
 
         if self._optimizer_string == "pgd":
@@ -111,6 +112,12 @@ class MyAdversarialPatchPyTorch(AdversarialPatchPyTorch):
             max=self.estimator.clip_values[1],
         )
 
+        # import cv2
+        # image = patched_input.detach().cpu().numpy()[0].transpose((1, 2, 0))
+        # image = (image * 255).astype(np.uint8)
+        # image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
+        # cv2.imwrite("test.jpg", image)
+
         predictions, target = self.estimator._predict_framework(patched_input, target)  # pylint: disable=W0212
 
         return predictions['out'], target
@@ -124,252 +131,31 @@ class MyAdversarialPatchPyTorch(AdversarialPatchPyTorch):
 
             prob_maps = torch.nn.functional.interpolate(predictions, size=(288, 800), mode='bilinear', align_corners=True) # TODO: set size dynamically 
 
-            print(f"prob_maps shape in adversarial_patch_pytorch.py: {prob_maps.shape}")
-            print(f"target shape in adversarial_patch_pytorch.py: {target.shape}")
+            # print(f"prob_maps shape in adversarial_patch_pytorch.py: {prob_maps.shape}")
+            # print(f"target shape in adversarial_patch_pytorch.py: {target.shape}")
 
             if self.use_logits:
                 loss = torch.nn.functional.cross_entropy(
-                    input=prob_maps, target=target, reduction="mean"
-                )
+                    input=prob_maps, target=target, reduction="mean", weight=torch.tensor([0.4, 1, 1, 1, 1]).to(self.estimator.device)
+                ) # TODO: get weight dynamically
+                
             else:
                 loss = torch.nn.functional.nll_loss(
                     input=prob_maps, target=torch.argmax(target, dim=1), reduction="mean"
                 )
 
         else:
-            patched_input = self._random_overlay(images, self._patch, mask=mask)
-            patched_input = torch.clamp(
-                patched_input,
-                min=self.estimator.clip_values[0],
-                max=self.estimator.clip_values[1],
-            )
-
-            loss = self.estimator.compute_loss(x=patched_input, y=target)
+            assert False and "This should not happen"
 
         if (not self.targeted and self._optimizer_string != "pgd") or self.targeted and self._optimizer_string == "pgd":
             loss = -loss
 
         return loss
 
-    def _get_circular_patch_mask(self, nb_samples: int, sharpness: int = 40) -> "torch.Tensor":
-        """
-        Return a circular patch mask.
-        """
-        import torch
-
-        diameter = np.minimum(self.patch_shape[self.i_h_patch], self.patch_shape[self.i_w_patch])
-
-        if self.patch_type == "circle":
-            x = np.linspace(-1, 1, diameter)
-            y = np.linspace(-1, 1, diameter)
-            x_grid, y_grid = np.meshgrid(x, y, sparse=True)
-            z_grid = (x_grid ** 2 + y_grid ** 2) ** sharpness
-            image_mask: Union[int, np.ndarray[Any, np.dtype[Any]]] = 1 - np.clip(z_grid, -1, 1)
-        elif self.patch_type == "square":
-            image_mask = np.ones((diameter, diameter))
-
-        image_mask = np.expand_dims(image_mask, axis=0)
-        image_mask = np.broadcast_to(image_mask, self.patch_shape)
-        image_mask_tensor = torch.Tensor(np.array(image_mask)).to(self.estimator.device)
-        image_mask_tensor = torch.stack([image_mask_tensor] * nb_samples, dim=0)
-        return image_mask_tensor
-
-    def _random_overlay(
-        self,
-        images: "torch.Tensor",
-        patch: "torch.Tensor",
-        scale: Optional[float] = None,
-        mask: Optional["torch.Tensor"] = None,
-    ) -> "torch.Tensor":
-        import torch
-        import torchvision
-
-        # Ensure channels-first
-        if not self.estimator.channels_first:
-            images = torch.permute(images, (0, 3, 1, 2))
-
-        nb_samples = images.shape[0]
-
-        image_mask = self._get_circular_patch_mask(nb_samples=nb_samples)
-        image_mask = image_mask.float()
-
-        self.image_shape = images.shape[1:]
-
-        smallest_image_edge = np.minimum(self.image_shape[self.i_h], self.image_shape[self.i_w])
-
-        image_mask = torchvision.transforms.functional.resize(
-            img=image_mask,
-            size=(smallest_image_edge, smallest_image_edge),
-            interpolation=2,
-        )
-
-        pad_h_before = int((self.image_shape[self.i_h] - image_mask.shape[self.i_h_patch + 1]) / 2)
-        pad_h_after = int(self.image_shape[self.i_h] - pad_h_before - image_mask.shape[self.i_h_patch + 1])
-
-        pad_w_before = int((self.image_shape[self.i_w] - image_mask.shape[self.i_w_patch + 1]) / 2)
-        pad_w_after = int(self.image_shape[self.i_w] - pad_w_before - image_mask.shape[self.i_w_patch + 1])
-
-        image_mask = torchvision.transforms.functional.pad(
-            img=image_mask,
-            padding=[pad_w_before, pad_h_before, pad_w_after, pad_h_after],
-            fill=0,
-            padding_mode="constant",
-        )
-
-        if self.nb_dims == 4:
-            image_mask = torch.unsqueeze(image_mask, dim=1)
-            image_mask = torch.repeat_interleave(image_mask, dim=1, repeats=self.input_shape[0])
-
-        image_mask = image_mask.float()
-
-        patch = patch.float()
-        padded_patch = torch.stack([patch] * nb_samples)
-
-        padded_patch = torchvision.transforms.functional.resize(
-            img=padded_patch,
-            size=(smallest_image_edge, smallest_image_edge),
-            interpolation=2,
-        )
-
-        padded_patch = torchvision.transforms.functional.pad(
-            img=padded_patch,
-            padding=[pad_w_before, pad_h_before, pad_w_after, pad_h_after],
-            fill=0,
-            padding_mode="constant",
-        )
-
-        if self.nb_dims == 4:
-            padded_patch = torch.unsqueeze(padded_patch, dim=1)
-            padded_patch = torch.repeat_interleave(padded_patch, dim=1, repeats=self.input_shape[0])
-
-        padded_patch = padded_patch.float()
-
-        image_mask_list = []
-        padded_patch_list = []
-
-        for i_sample in range(nb_samples):
-            if self.patch_location is None:
-                if scale is None:
-                    im_scale = np.random.uniform(low=self.scale_min, high=self.scale_max)
-                else:
-                    im_scale = scale
-            else:
-                im_scale = self.patch_shape[self.i_h] / smallest_image_edge
-
-            if mask is None:
-                if self.patch_location is None:
-                    padding_after_scaling_h = (
-                        self.image_shape[self.i_h] - im_scale * padded_patch.shape[self.i_h + 1]
-                    ) / 2.0
-                    padding_after_scaling_w = (
-                        self.image_shape[self.i_w] - im_scale * padded_patch.shape[self.i_w + 1]
-                    ) / 2.0
-                    x_shift = np.random.uniform(-padding_after_scaling_w, padding_after_scaling_w)
-                    y_shift = np.random.uniform(-padding_after_scaling_h, padding_after_scaling_h)
-                else:
-                    padding_h = int(math.floor(self.image_shape[self.i_h] - self.patch_shape[self.i_h]) / 2.0)
-                    padding_w = int(math.floor(self.image_shape[self.i_w] - self.patch_shape[self.i_w]) / 2.0)
-                    x_shift = -padding_w + self.patch_location[0]
-                    y_shift = -padding_h + self.patch_location[1]
-            else:
-                mask_2d = mask[i_sample, :, :]
-
-                edge_x_0 = int(im_scale * padded_patch.shape[self.i_w + 1]) // 2
-                edge_x_1 = int(im_scale * padded_patch.shape[self.i_w + 1]) - edge_x_0
-                edge_y_0 = int(im_scale * padded_patch.shape[self.i_h + 1]) // 2
-                edge_y_1 = int(im_scale * padded_patch.shape[self.i_h + 1]) - edge_y_0
-
-                mask_2d[0:edge_x_0, :] = False
-                if edge_x_1 > 0:
-                    mask_2d[-edge_x_1:, :] = False
-                mask_2d[:, 0:edge_y_0] = False
-                if edge_y_1 > 0:
-                    mask_2d[:, -edge_y_1:] = False
-
-                num_pos = np.argwhere(mask_2d).shape[0]
-                pos_id = np.random.choice(num_pos, size=1)
-                pos = np.argwhere(mask_2d)[pos_id[0]]
-                x_shift = pos[1] - self.image_shape[self.i_w] // 2
-                y_shift = pos[0] - self.image_shape[self.i_h] // 2
-
-            phi_rotate = float(np.random.uniform(-self.rotation_max, self.rotation_max))
-
-            image_mask_i = image_mask[i_sample]
-
-            height = padded_patch.shape[self.i_h + 1]
-            width = padded_patch.shape[self.i_w + 1]
-
-            half_height = height // 2
-            half_width = width // 2
-            topleft = [
-                int(torch.randint(0, int(self.distortion_scale_max * half_width) + 1, size=(1,)).item()),
-                int(torch.randint(0, int(self.distortion_scale_max * half_height) + 1, size=(1,)).item()),
-            ]
-            topright = [
-                int(torch.randint(width - int(self.distortion_scale_max * half_width) - 1, width, size=(1,)).item()),
-                int(torch.randint(0, int(self.distortion_scale_max * half_height) + 1, size=(1,)).item()),
-            ]
-            botright = [
-                int(torch.randint(width - int(self.distortion_scale_max * half_width) - 1, width, size=(1,)).item()),
-                int(torch.randint(height - int(self.distortion_scale_max * half_height) - 1, height, size=(1,)).item()),
-            ]
-            botleft = [
-                int(torch.randint(0, int(self.distortion_scale_max * half_width) + 1, size=(1,)).item()),
-                int(torch.randint(height - int(self.distortion_scale_max * half_height) - 1, height, size=(1,)).item()),
-            ]
-            startpoints = [[0, 0], [width - 1, 0], [width - 1, height - 1], [0, height - 1]]
-            endpoints = [topleft, topright, botright, botleft]
-
-            image_mask_i = torchvision.transforms.functional.perspective(
-                img=image_mask_i, startpoints=startpoints, endpoints=endpoints, interpolation=2, fill=None
-            )
-
-            image_mask_i = torchvision.transforms.functional.affine(
-                img=image_mask_i,
-                angle=phi_rotate,
-                translate=[x_shift, y_shift],
-                scale=im_scale,
-                shear=[0, 0],
-                interpolation=torchvision.transforms.InterpolationMode.NEAREST,
-                fill=None,
-            )
-
-            image_mask_list.append(image_mask_i)
-
-            padded_patch_i = padded_patch[i_sample]
-
-            padded_patch_i = torchvision.transforms.functional.perspective(
-                img=padded_patch_i, startpoints=startpoints, endpoints=endpoints, interpolation=2, fill=None
-            )
-
-            padded_patch_i = torchvision.transforms.functional.affine(
-                img=padded_patch_i,
-                angle=phi_rotate,
-                translate=[x_shift, y_shift],
-                scale=im_scale,
-                shear=[0, 0],
-                interpolation=torchvision.transforms.InterpolationMode.NEAREST,
-                fill=None,
-            )
-
-            padded_patch_list.append(padded_patch_i)
-
-        image_mask = torch.stack(image_mask_list, dim=0)
-        padded_patch = torch.stack(padded_patch_list, dim=0)
-        inverted_mask = (
-            torch.from_numpy(np.ones(shape=image_mask.shape, dtype=np.float32)).to(self.estimator.device) - image_mask
-        )
-
-        patched_images = images * inverted_mask + padded_patch * image_mask
-
-        if not self.estimator.channels_first:
-            patched_images = torch.permute(patched_images, (0, 2, 3, 1))
-
-        return patched_images
 
     def generate(  # type: ignore
         self, x: np.ndarray, y: Optional[np.ndarray] = None, **kwargs
-    ) -> Tuple[np.ndarray, np.ndarray]:
+    ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
         """
         Generate an adversarial patch and return the patch and its mask in arrays.
 
@@ -382,6 +168,7 @@ class MyAdversarialPatchPyTorch(AdversarialPatchPyTorch):
         :return: An array with adversarial patch and an array of the patch mask.
         """
         import torch
+        print(f"Device {self.estimator.device}")
 
         shuffle = kwargs.get("shuffle", True)
         mask = kwargs.get("mask")
@@ -394,23 +181,25 @@ class MyAdversarialPatchPyTorch(AdversarialPatchPyTorch):
 
         if y is None:  # pragma: no cover
             logger.info("Setting labels to estimator predictions and running untargeted attack because `y=None`.")
-            y = to_categorical(np.argmax(self.estimator.predict(x=x), axis=1), nb_classes=self.estimator.nb_classes)
-
-        if hasattr(self.estimator, "nb_classes"):
+            y = self.estimator.predict(x, batch_size=self.batch_size)
+        else:
             y = check_and_transform_label_format(labels=y, nb_classes=self.estimator.nb_classes)
 
+        if hasattr(self.estimator, "nb_classes"):
             # check if logits or probabilities
-            y_pred = self.estimator.predict(x=x[[0]])
-            # shape is (1, 5, 288, 800)
 
-            if is_probability(y_pred):
+            if is_probability(y): # type: ignore
                 self.use_logits = False
             else:
                 self.use_logits = True
 
         if isinstance(y, np.ndarray):
+            if self.estimator.nb_classes > 2:
+               y_array = y / np.sum(y, axis=1, keepdims=True)
+
             x_tensor = torch.Tensor(x)
             y_tensor = torch.Tensor(y)
+
 
             if mask is None:
                 dataset = torch.utils.data.TensorDataset(x_tensor, y_tensor)
@@ -421,166 +210,48 @@ class MyAdversarialPatchPyTorch(AdversarialPatchPyTorch):
                     drop_last=False,
                 )
             else:
-                assert False and "This should not happen"
+                mask_tensor = torch.Tensor(mask)
+                dataset = torch.utils.data.TensorDataset(x_tensor, y_tensor, mask_tensor)
+                data_loader = torch.utils.data.DataLoader(
+                    dataset=dataset,
+                    batch_size=self.batch_size,
+                    shuffle=shuffle,
+                    drop_last=False,
+                )
         else:
             assert False and "This should not happen"
             
-
-        for i_iter in trange(self.max_iter, desc="Adversarial Patch PyTorch", disable=not self.verbose):
+        t = trange(self.max_iter, desc="Adversarial Patch PyTorch", disable=not self.verbose)
+        for i_iter in t:
             if mask is None:
                 for images, target in data_loader:
                     images = images.to(self.estimator.device)
                     if isinstance(target, torch.Tensor):
                         target = target.to(self.estimator.device)
                     else:
-                        targets = []
-                        for idx in range(target["boxes"].shape[0]):
-                            targets.append(
-                                {
-                                    "boxes": target["boxes"][idx].to(self.estimator.device),
-                                    "labels": target["labels"][idx].to(self.estimator.device),
-                                    "scores": target["scores"][idx].to(self.estimator.device),
-                                }
-                            )
-                        target = targets
-                    _ = self._train_step(images=images, target=target, mask=None)
+                        assert False and "This should not happen"
+                    loss = self._train_step(images=images, target=target, mask=None)
+                    t.set_postfix(loss=loss.item())
+
             else:
-                assert False and "This should not happen"
+               for images, target, mask_i in data_loader:
+                    images = images.to(self.estimator.device)
+                    if isinstance(target, torch.Tensor):
+                        target = target.to(self.estimator.device)
+                    else:
+                        assert False and "This should not happen"
+                    # mask_i = mask_i.to(self.estimator.device) # TODO: use GPU
+                    _ = self._train_step(images=images, target=target, mask=mask_i)
 
-            # Write summary
-            if self.summary_writer is not None:  # pragma: no cover
-                x_patched = (
-                    self._random_overlay(
-                        images=torch.from_numpy(x).to(self.estimator.device), patch=self._patch, mask=mask
-                    )
-                    .detach()
-                    .cpu()
-                    .numpy()
-                )
-
-                self.summary_writer.update(
-                    batch_id=0,
-                    global_step=i_iter,
-                    grad=None,
-                    patch=self._patch,
-                    estimator=self.estimator,
-                    x=x_patched,
-                    y=y,
-                    targeted=self.targeted,
-                )
-
-        if self.summary_writer is not None:
-            self.summary_writer.reset()
-
-        return (
-            self._patch.detach().cpu().numpy(),
-            self._get_circular_patch_mask(nb_samples=1).cpu().numpy()[0],
-        )
-
-    def _check_mask(self, mask: Optional[np.ndarray], x: np.ndarray) -> Optional[np.ndarray]:
-        if mask is not None and (  # pragma: no cover
-            (mask.dtype != bool)
-            or not (mask.shape[0] == 1 or mask.shape[0] == x.shape[0])
-            or not (mask.shape[1] == x.shape[self.i_h + 1] and mask.shape[2] == x.shape[self.i_w + 1])
-        ):
-            raise ValueError(
-                "The shape of `mask` has to be equal to the shape of a single samples (1, H, W) or the"
-                "shape of `x` (N, H, W) without their channel dimensions."
-            )
-
-        if mask is not None and mask.shape[0] == 1:
-            mask = np.repeat(mask, repeats=x.shape[0], axis=0)
-
-        return mask
-
-    def apply_patch(
-        self,
-        x: np.ndarray,
-        scale: float,
-        patch_external: Optional[np.ndarray] = None,
-        mask: Optional[np.ndarray] = None,
-    ) -> np.ndarray:
-        """
-        A function to apply the learned adversarial patch to images or videos.
-
-        :param x: Instances to apply randomly transformed patch.
-        :param scale: Scale of the applied patch in relation to the estimator input shape.
-        :param patch_external: External patch to apply to images `x`.
-        :param mask: An boolean array of shape equal to the shape of a single samples (1, H, W) or the shape of `x`
-                     (N, H, W) without their channel dimensions. Any features for which the mask is True can be the
-                     center location of the patch during sampling.
-        :return: The patched samples.
-        """
-        import torch
-
-        if mask is not None:
-            mask = mask.copy()
-        mask = self._check_mask(mask=mask, x=x)
-        x_tensor = torch.Tensor(x).to(self.estimator.device)
-        if mask is not None:
-            mask_tensor = torch.Tensor(mask).to(self.estimator.device)
-        else:
-            mask_tensor = None
-        if isinstance(patch_external, np.ndarray):
-            patch_tensor = torch.Tensor(patch_external).to(self.estimator.device)
-        else:
-            patch_tensor = self._patch
-        return (
-            self._random_overlay(images=x_tensor, patch=patch_tensor, scale=scale, mask=mask_tensor)
+        x_patched = (
+            self._random_overlay(images=torch.from_numpy(x).to(self.estimator.device), patch=self._patch.detach())
             .detach()
             .cpu()
             .numpy()
         )
 
-    def reset_patch(self, initial_patch_value: Optional[Union[float, np.ndarray]] = None) -> None:
-        """
-        Reset the adversarial patch.
-
-        :param initial_patch_value: Patch value to use for resetting the patch.
-        """
-        import torch
-
-        if initial_patch_value is None:
-            self._patch.data = torch.Tensor(self._initial_value).double()
-        elif isinstance(initial_patch_value, float):
-            initial_value = np.ones(self.patch_shape) * initial_patch_value
-            self._patch.data = torch.Tensor(initial_value).double()
-        elif self._patch.shape == initial_patch_value.shape:
-            self._patch.data = torch.Tensor(initial_patch_value).double()
-        else:
-            raise ValueError("Unexpected value for initial_patch_value.")
-
-    @staticmethod
-    def insert_transformed_patch(x: np.ndarray, patch: np.ndarray, image_coords: np.ndarray):
-        """
-        Insert patch to image based on given or selected coordinates.
-
-        :param x: The image to insert the patch.
-        :param patch: The patch to be transformed and inserted.
-        :param image_coords: The coordinates of the 4 corners of the transformed, inserted patch of shape
-            [[x1, y1], [x2, y2], [x3, y3], [x4, y4]] in pixel units going in clockwise direction, starting with upper
-            left corner.
-        :return: The input `x` with the patch inserted.
-        """
-        return insert_transformed_patch(x, patch, image_coords)
-
-    def _check_params(self) -> None:
-        super()._check_params()
-
-        if not isinstance(self.distortion_scale_max, (float, int)) or 1.0 <= self.distortion_scale_max < 0.0:
-            raise ValueError("The maximum distortion scale has to be greater than or equal 0.0 or smaller than 1.0.")
-
-        if self.patch_location is not None and not (
-            isinstance(self.patch_location, tuple)
-            and len(self.patch_location) == 2
-            and isinstance(self.patch_location[0], int)
-            and self.patch_location[0] >= 0
-            and isinstance(self.patch_location[1], int)
-            and self.patch_location[1] >= 0
-        ):
-            raise ValueError(
-                "The patch location has to be either `None` or a tuple of two integers greater than or equal 0."
-            )
-
-        if self.patch_type not in ["circle", "square"]:
-            raise ValueError("The patch type has to be either `circle` or `square`.")
+        return (
+            self._patch.detach().cpu().numpy(),
+            self._get_circular_patch_mask(nb_samples=1).cpu().numpy()[0],
+            x_patched[0]
+        )

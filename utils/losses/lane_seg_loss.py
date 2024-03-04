@@ -45,14 +45,13 @@ class LaneLossSeg(_Loss):
         self.ignore_index = ignore_index
        
     def forward(self, inputs: Tensor, targets: Tensor, net):
-        # outputs = net(inputs)
         prob_maps = torch.nn.functional.interpolate(inputs['out'], size=(288, 800), mode='bilinear', # TODO: set size dynamically
                                                     align_corners=True)
         
         targets[targets > 5] = 255  # Ignore extra lanes TODO: set dynamically
 
-        print(f"prob_maps shape: {prob_maps.shape}")
-        print(f"targets shape: {targets.shape}")
+        # print(f"prob_maps shape: {prob_maps.shape}")
+        # print(f"targets shape: {targets.shape}")
 
         segmentation_loss = F.cross_entropy(prob_maps, targets, weight=self.weight.cuda(),
                                             reduction=self.reduction)

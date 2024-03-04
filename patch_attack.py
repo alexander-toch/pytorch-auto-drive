@@ -61,19 +61,19 @@ model_in = (
     model_in.permute((2, 0, 1)).contiguous().float().div(255).unsqueeze(0).numpy()
 )
 
-def save_image(image, path):
+def save_image(image, path, sizes=orig_sizes):
     image = image.transpose((1, 2, 0))
     image = np.clip(image, 0, 1)
     image = (image * 255).astype(np.uint8)
-    image = cv2.resize(image, (orig_sizes[1], orig_sizes[0]))
+    image = cv2.resize(image, (sizes[1], sizes[0]))
     image = cv2.cvtColor(image, cv2.COLOR_RGB2BGR)
     cv2.imwrite(path, image)
 
-print("Starting Fast Gradient Method attack")
-from art.attacks.evasion import FastGradientMethod
-attack = FastGradientMethod(estimator=classifier, eps=0.01)
-x_test_adv = attack.generate(x=model_in)
-print("Completed Fast Gradient Method attack")
+# print("Starting Fast Gradient Method attack")
+# from art.attacks.evasion import FastGradientMethod
+# attack = FastGradientMethod(estimator=classifier, eps=0.01)
+# x_test_adv = attack.generate(x=model_in)
+# print("Completed Fast Gradient Method attack")
 
 # # save image
 # save_image(x_test_adv[0], 'adv_img_fast_gradient.jpg')
@@ -85,7 +85,20 @@ print("Completed Fast Gradient Method attack")
 
 print("Starting patch attack")
 from adversarial_patch_pytorch import MyAdversarialPatchPyTorch
-attack = MyAdversarialPatchPyTorch(estimator=classifier, max_iter=1000)
-x_test_adv = attack.generate(x=model_in)
-save_image(x_test_adv[0], 'adv_img_patch.jpg')
+patch_size = (90,90)
+patch_location=(350,180) # use this with patch_location=(patch_location[0], patch_location[1]) OR mask
+# mask = np.ones(shape=(1, input_size[0], input_size[1]), dtype=bool)
+attack = MyAdversarialPatchPyTorch(estimator=classifier, 
+                                   max_iter=2000, 
+                                   patch_type='square', 
+                                   patch_shape=(3, patch_size[0], patch_size[1]), 
+                                   patch_location=patch_location,
+                                   scale_min=1.0,
+                                   rotation_max=0.0)
+# attack = MyAdversarialPatchPyTorch(estimator=classifier, max_iter=2000, patch_type='square', patch_shape=(3, patch_size[0], patch_size[1]))
+
+x_test_adv = attack.generate(x=model_in) # param x: An array with the original input images of shape NCHW or input videos of shape NFCHW.
+save_image(x_test_adv[0], 'adv_img_patch.jpg', sizes=patch_size)
+save_image(x_test_adv[2], 'adv_img_patched.jpg', sizes=input_size)
+
 print("Completed patch attack")
