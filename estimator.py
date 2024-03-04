@@ -2,6 +2,7 @@ from typing import List, Optional, Tuple, Union, TYPE_CHECKING
 import numpy as np
 import torch
 from art.estimators.classification.pytorch import PyTorchClassifier
+from art.estimators.object_detection.object_detector import ObjectDetectorMixin
 import logging
 from art.utils import check_and_transform_label_format
 if TYPE_CHECKING:
@@ -15,7 +16,7 @@ if TYPE_CHECKING:
     
 logger = logging.getLogger(__name__)
 
-class MyPyTorchClassifier(PyTorchClassifier):
+class MyPyTorchClassifier(PyTorchClassifier, ObjectDetectorMixin):
     def __init__(self,
         model: "torch.nn.Module",
         loss: "torch.nn.modules.loss._Loss",
@@ -217,3 +218,9 @@ class MyPyTorchClassifier(PyTorchClassifier):
             return loss
 
         return loss.detach().cpu().numpy()
+
+    def native_label_is_pytorch_format(self) -> bool:
+        """
+        Are the native labels in PyTorch format [x1, y1, x2, y2]?
+        """
+        raise NotImplementedError

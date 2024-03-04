@@ -129,19 +129,16 @@ class MyAdversarialPatchPyTorch(AdversarialPatchPyTorch):
             
             predictions, target = self._predictions(images, mask, target)
 
-            prob_maps = torch.nn.functional.interpolate(predictions, size=(288, 800), mode='bilinear', align_corners=True) # TODO: set size dynamically 
-
+            # prob_maps = torch.nn.functional.interpolate(predictions, size=(self.estimator.input_shape[0], self.estimator.input_shape[1]), mode='bilinear', align_corners=True)
             # print(f"prob_maps shape in adversarial_patch_pytorch.py: {prob_maps.shape}")
             # print(f"target shape in adversarial_patch_pytorch.py: {target.shape}")
 
             if self.use_logits:
-                loss = torch.nn.functional.cross_entropy(
-                    input=prob_maps, target=target, reduction="mean", weight=torch.tensor([0.4, 1, 1, 1, 1]).to(self.estimator.device)
-                ) # TODO: get weight dynamically
+                loss = torch.nn.functional.cross_entropy( input=predictions, target=target, reduction="mean")
                 
             else:
                 loss = torch.nn.functional.nll_loss(
-                    input=prob_maps, target=torch.argmax(target, dim=1), reduction="mean"
+                    input=predictions, target=torch.argmax(target, dim=1), reduction="mean"
                 )
 
         else:
@@ -176,11 +173,10 @@ class MyAdversarialPatchPyTorch(AdversarialPatchPyTorch):
         mask = self._check_mask(mask=mask, x=x)
 
         # set initial value to cropped image area of patch shape and patch location
-        if self.patch_location is not None and self.patch_shape is not None:    
-
-            img = x[0].copy()
-            cropped = img[:, self.patch_location[1] : self.patch_location[1] + self.patch_shape[1], self.patch_location[0]: self.patch_location[0] + self.patch_shape[2]]
-            self.reset_patch(cropped)
+        # if self.patch_location is not None and self.patch_shape is not None:    
+        #     img = x[0].copy()
+        #     cropped = img[:, self.patch_location[1] : self.patch_location[1] + self.patch_shape[1], self.patch_location[0]: self.patch_location[0] + self.patch_shape[2]]
+        #     self.reset_patch(cropped)
 
         if self.patch_location is not None and mask is not None:
             raise ValueError("Masks can only be used if the `patch_location` is `None`.")
@@ -247,7 +243,7 @@ class MyAdversarialPatchPyTorch(AdversarialPatchPyTorch):
                     else:
                         assert False and "This should not happen"
                     # mask_i = mask_i.to(self.estimator.device) # TODO: use GPU
-                    _ = self._train_step(images=images, target=target, mask=mask_i)
+                    loss = self._train_step(images=images, target=target, mask=mask_i)
 
         x_patched = (
             self._random_overlay(images=torch.from_numpy(x).to(self.estimator.device), patch=self._patch.detach())

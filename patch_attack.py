@@ -47,6 +47,7 @@ classifier = MyPyTorchClassifier(
     optimizer=optimizer,
     input_shape=(1, input_size[0], input_size[1]),
     nb_classes=num_classes,
+    channels_first=True,
 )
 
 image = Image.open('../../lanefitting/example_input.jpg')
@@ -83,10 +84,15 @@ def save_image(image, path, sizes=orig_sizes):
 # x_test_adv = attack.generate(x=model_in)
 # save_image(x_test_adv[0], 'adv_img_iterative.jpg')
 
+
+####################
+### Patch Attack ###
+####################
+    
 print("Starting patch attack")
 from adversarial_patch_pytorch import MyAdversarialPatchPyTorch
-patch_size = (95,95)
-patch_location=(350,190) # use this with patch_location=(patch_location[0], patch_location[1]) OR mask
+patch_size = (100,100)
+patch_location=(355,185) # use this with patch_location=(patch_location[0], patch_location[1]) OR mask
 # mask = np.ones(shape=(1, input_size[0], input_size[1]), dtype=bool)
 attack = MyAdversarialPatchPyTorch(estimator=classifier, 
                                    max_iter=1000, 
@@ -94,11 +100,26 @@ attack = MyAdversarialPatchPyTorch(estimator=classifier,
                                    patch_shape=(3, patch_size[0], patch_size[1]), 
                                    patch_location=patch_location,
                                    scale_min=1.0,
-                                   rotation_max=0.0)
-# attack = MyAdversarialPatchPyTorch(estimator=classifier, max_iter=2000, patch_type='square', patch_shape=(3, patch_size[0], patch_size[1]))
+                                   rotation_max=0.0,
+                                   learning_rate=10)
 
 x_test_adv = attack.generate(x=model_in) # param x: An array with the original input images of shape NCHW or input videos of shape NFCHW.
 save_image(x_test_adv[0], 'adv_img_patch.jpg', sizes=patch_size)
 save_image(x_test_adv[2], 'adv_img_patched.jpg', sizes=input_size)
 
 print("Completed patch attack")
+
+############################
+### Robust DPatch Attack ###
+############################
+    
+# print("Starting Robust DPatch attack")
+
+# from dpatch_robust import MyRobustDPatch
+# attack = MyRobustDPatch(estimator=classifier, 
+#                         patch_shape=(3, patch_size[0], patch_size[1]), 
+#                         patch_location=patch_location,
+#                         crop_range=(90,90))
+                        
+# x_test_adv = attack.generate(x=model_in) # param x: An array with the original input images of shape NCHW or input videos of shape NFCHW.
+# print("Completed Robust DPatch attack")
