@@ -24,7 +24,7 @@ can be printed into the physical world with a common printer. The patch can be u
 from __future__ import absolute_import, division, print_function, unicode_literals
 
 import logging
-import math
+import torch
 from typing import Any, Optional, Tuple, Union, TYPE_CHECKING
 
 import numpy as np
@@ -68,6 +68,8 @@ class MyAdversarialPatchPyTorch(AdversarialPatchPyTorch):
         verbose: bool = True,
     ):
        super().__init__(estimator=estimator, rotation_max=rotation_max, scale_min=scale_min, scale_max=scale_max, distortion_scale_max=distortion_scale_max, learning_rate=learning_rate, max_iter=max_iter, batch_size=batch_size, patch_shape=patch_shape, patch_location=patch_location, patch_type=patch_type, optimizer=optimizer, targeted=targeted, summary_writer=summary_writer, verbose=verbose)
+       if self._optimizer_string == "AdamW":
+            self._optimizer = torch.optim.AdamW([self._patch], lr=self.learning_rate)
 
     def _train_step(
         self, images: "torch.Tensor", target: "torch.Tensor", mask: Optional["torch.Tensor"] = None

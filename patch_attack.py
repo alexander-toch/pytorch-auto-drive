@@ -14,7 +14,8 @@ from pytorch_auto_drive.utils.runners.base import BaseTrainer
 import torch
 
 
-CONFIG=os.path.dirname(os.getcwd()) + '/pytorch_auto_drive/configs/lane_detection/resa/resnet50_culane.py'
+CONFIG=os.path.dirname(os.getcwd()) + '/pytorch_auto_drive/configs/lane_detection/resa/resnet50_culane.py' # resa culane (288, 800)
+# CONFIG=os.path.dirname(os.getcwd()) + '/pytorch_auto_drive/configs/lane_detection/baseline/resnet50_culane.py'
 cfg = read_config(CONFIG)
 model = MODELS.from_dict(cfg['model'])
 
@@ -32,6 +33,7 @@ num_classes = cfg['train']['num_classes']
 input_size = cfg['train']['input_size']
 
 load_checkpoint(net=model, optimizer=None, lr_scheduler=None, filename=os.path.dirname(os.getcwd()) + '/../../resnet50_resa_culane_20211016.pt', strict=False)
+# load_checkpoint(net=model, optimizer=None, lr_scheduler=None, filename=os.path.dirname(os.getcwd()) + '/../../resnet50_baseline_culane_20210308.pt', strict=False)
 
 clip_values = (0, 255)
 
@@ -89,37 +91,56 @@ def save_image(image, path, sizes=orig_sizes):
 ### Patch Attack ###
 ####################
     
-print("Starting patch attack")
-from adversarial_patch_pytorch import MyAdversarialPatchPyTorch
-patch_size = (100,100)
-patch_location=(355,185) # use this with patch_location=(patch_location[0], patch_location[1]) OR mask
-# mask = np.ones(shape=(1, input_size[0], input_size[1]), dtype=bool)
-attack = MyAdversarialPatchPyTorch(estimator=classifier, 
-                                   max_iter=1000, 
-                                   patch_type='square', 
-                                   patch_shape=(3, patch_size[0], patch_size[1]), 
-                                   patch_location=patch_location,
-                                   scale_min=1.0,
-                                   rotation_max=0.0,
-                                   learning_rate=10)
+# print("Starting patch attack")
+# from adversarial_patch_pytorch import MyAdversarialPatchPyTorch
+# patch_size = (100,100)
+# patch_location=(355,185) # use this with patch_location=(patch_location[0], patch_location[1]) OR mask
+# attack = MyAdversarialPatchPyTorch(estimator=classifier, 
+#                                    max_iter=1000, 
+#                                    patch_type='square', 
+#                                    patch_shape=(3, patch_size[0], patch_size[1]), 
+#                                    patch_location=patch_location,
+#                                    scale_min=1.0,
+#                                    rotation_max=0.0,
+#                                    learning_rate=10,
+#                                    optimizer='AdamW')
 
-x_test_adv = attack.generate(x=model_in) # param x: An array with the original input images of shape NCHW or input videos of shape NFCHW.
-save_image(x_test_adv[0], 'adv_img_patch.jpg', sizes=patch_size)
-save_image(x_test_adv[2], 'adv_img_patched.jpg', sizes=input_size)
+# x_test_adv = attack.generate(x=model_in) # param x: An array with the original input images of shape NCHW or input videos of shape NFCHW.
+# save_image(x_test_adv[0], 'adv_img_patch.jpg', sizes=patch_size)
+# save_image(x_test_adv[2], 'adv_img_patched.jpg', sizes=input_size)
 
-print("Completed patch attack")
+# print("Completed patch attack")
 
 ############################
 ### Robust DPatch Attack ###
 ############################
     
-# print("Starting Robust DPatch attack")
+print("Starting Robust DPatch attack")
+patch_size = (100,100)
+patch_location=(355,185)
+brightness_range= (0.8, 1.0)
+rotation_weights = (0.4, 0.2, 0.2, 0.2)
 
-# from dpatch_robust import MyRobustDPatch
-# attack = MyRobustDPatch(estimator=classifier, 
-#                         patch_shape=(3, patch_size[0], patch_size[1]), 
-#                         patch_location=patch_location,
-#                         crop_range=(90,90))
-                        
-# x_test_adv = attack.generate(x=model_in) # param x: An array with the original input images of shape NCHW or input videos of shape NFCHW.
-# print("Completed Robust DPatch attack")
+from dpatch_robust import MyRobustDPatch
+attack = MyRobustDPatch(estimator=classifier, 
+                        max_iter=300,
+                        sample_size=1,
+                        patch_shape=(3, patch_size[0], patch_size[1]), 
+                        patch_location=patch_location,
+                        brightness_range=brightness_range,
+                        learning_rate=6.0,
+                        # rotation_weights=rotation_weights,
+                    )
+
+x_test_adv = attack.generate(x=model_in)
+patch = x_test_adv[0]
+save_image(patch, 'adv_img_dpatch.jpg', sizes=patch_size)
+
+# place patch
+x_1, y_1 = patch_location
+x_2, y_2 = x_1 + patch.shape[1], y_1 + patch.shape[2]
+img = model_in[0].copy()
+img[:, y_1:y_2, x_1:x_2] = patch
+
+save_image(img, 'adv_img_dpatched.jpg', sizes=input_size)
+print("Completed Robust DPatch attack")

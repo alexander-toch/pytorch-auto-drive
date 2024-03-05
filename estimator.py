@@ -58,8 +58,8 @@ class MyPyTorchClassifier(PyTorchClassifier, ObjectDetectorMixin):
         """
         import torch
 
-        print(f"sample input shape: {x.shape}")
-        print(f"y shape: {y.shape}")
+        # print(f"sample input shape: {x.shape}")
+        # print(f"y shape: {y.shape}")
 
         self._model.train(mode=training_mode)
 
