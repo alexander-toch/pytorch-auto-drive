@@ -13,9 +13,19 @@ from pytorch_auto_drive.utils.losses import LOSSES
 from pytorch_auto_drive.utils.runners.base import BaseTrainer
 import torch
 
+MODEL="baseline"
+IMAGE_PATH='../../lanefitting/example_input.jpg'
 
-CONFIG=os.path.dirname(os.getcwd()) + '/pytorch_auto_drive/configs/lane_detection/resa/resnet50_culane.py' # resa culane (288, 800)
-# CONFIG=os.path.dirname(os.getcwd()) + '/pytorch_auto_drive/configs/lane_detection/baseline/resnet50_culane.py'
+if MODEL == "baseline":
+    CONFIG=os.path.dirname(os.getcwd()) + '/pytorch_auto_drive/configs/lane_detection/baseline/resnet50_culane.py'
+    CHECKPOINT=os.path.dirname(os.getcwd()) + '/../../resnet50_baseline_culane_20210308.pt'
+elif MODEL == "resa":
+    CONFIG=os.path.dirname(os.getcwd()) + '/pytorch_auto_drive/configs/lane_detection/resa/resnet50_culane.py'
+    CHECKPOINT=os.path.dirname(os.getcwd()) + '/../../resnet50_resa_culane_20211016.pt'
+elif MODEL == "scnn":
+    CONFIG=os.path.dirname(os.getcwd()) + '/pytorch_auto_drive/configs/lane_detection/scnn/resnet50_culane.py'
+    CHECKPOINT=os.path.dirname(os.getcwd()) + '/../../resnet50_scnn_culane_20210311.pt'
+
 cfg = read_config(CONFIG)
 model = MODELS.from_dict(cfg['model'])
 
@@ -31,9 +41,7 @@ loss_config = loss = dict(
 loss = LOSSES.from_dict(loss_config)
 num_classes = cfg['train']['num_classes']
 input_size = cfg['train']['input_size']
-
-load_checkpoint(net=model, optimizer=None, lr_scheduler=None, filename=os.path.dirname(os.getcwd()) + '/../../resnet50_resa_culane_20211016.pt', strict=False)
-# load_checkpoint(net=model, optimizer=None, lr_scheduler=None, filename=os.path.dirname(os.getcwd()) + '/../../resnet50_baseline_culane_20210308.pt', strict=False)
+load_checkpoint(net=model, optimizer=None, lr_scheduler=None, filename=CHECKPOINT, strict=False)
 
 clip_values = (0, 255)
 
@@ -52,7 +60,7 @@ classifier = MyPyTorchClassifier(
     channels_first=True,
 )
 
-image = Image.open('../../lanefitting/example_input.jpg')
+image = Image.open(IMAGE_PATH)
 orig_sizes = (image.height, image.width)
 original_img = F.to_tensor(image).clone().unsqueeze(0)
 image = F.resize(image, size=input_size) # type: ignore
@@ -128,7 +136,7 @@ attack = MyRobustDPatch(estimator=classifier,
                         patch_shape=(3, patch_size[0], patch_size[1]), 
                         patch_location=patch_location,
                         brightness_range=brightness_range,
-                        learning_rate=6.0,
+                        learning_rate=5.0,
                         # rotation_weights=rotation_weights,
                     )
 

@@ -106,8 +106,9 @@ class MyPyTorchClassifier(PyTorchClassifier, ObjectDetectorMixin):
 
         # Compute the gradient and return
         model_outputs = self._model(inputs_t)
+
         #  def forward(self, inputs: Tensor, targets: Tensor, net, interp_size):
-        loss = self._loss(model_outputs[-1], labels_t, self._model)
+        loss = self._loss(model_outputs[-1], labels_t, self.input_shape[1:3])
 
         # Clean gradients
         self._model.zero_grad()
@@ -135,7 +136,7 @@ class MyPyTorchClassifier(PyTorchClassifier, ObjectDetectorMixin):
 
         assert grads.shape == x.shape
 
-        return grads
+        return grads, loss.detach().cpu().numpy()
     
     def _predict_framework(
         self, x: "torch.Tensor", y: Optional["torch.Tensor"] = None
@@ -211,7 +212,7 @@ class MyPyTorchClassifier(PyTorchClassifier, ObjectDetectorMixin):
 
         # Return individual loss values
         self._loss.reduction = reduction
-        loss = self._loss(model_outputs[-1], y_grad, self._model)
+        loss = self._loss(model_outputs[-1], y_grad, self.input_shape[1:3])
         self._loss.reduction = prev_reduction
 
         if isinstance(x, torch.Tensor):

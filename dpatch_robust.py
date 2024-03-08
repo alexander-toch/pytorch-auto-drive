@@ -224,7 +224,7 @@ class MyRobustDPatch(RobustDPatch):
                         x[i_batch_start:i_batch_end], y_batch, self._patch, channels_first=self.estimator.channels_first
                     )
 
-                    gradients = self.estimator.loss_gradient(
+                    gradients, loss = self.estimator.loss_gradient(
                         x=patched_images,
                         y=patch_target,
                         standardise_output=True,
@@ -233,14 +233,13 @@ class MyRobustDPatch(RobustDPatch):
                         gradients, transforms, channels_first=self.estimator.channels_first
                     )
 
-                    # TODO: check if this makes sense
                     patch_gradients = patch_gradients_old + np.sum(gradients, axis=0)
                     logger.debug(
                         "Gradient percentage diff: %f)",
                         np.mean(np.sign(patch_gradients) != np.sign(patch_gradients_old)),
                     )
-                    # t.set_postfix(loss=np.mean(np.sign(patch_gradients)))
-                     
+                    t.set_postfix(loss=loss)
+                    # t.set_postfix(diff=np.mean(np.sign(patch_gradients) != np.sign(patch_gradients_old)))
 
                     patch_gradients_old = patch_gradients
 
@@ -261,9 +260,7 @@ class MyRobustDPatch(RobustDPatch):
                     targeted=self.targeted,
                 )
 
-            # self._patch = self._patch + np.sign(patch_gradients) * (1 - 2 * int(self.targeted)) * self.learning_rate
-            # TODO: check why - is working instead of +
-            self._patch = self._patch - np.sign(patch_gradients) * self.learning_rate
+            self._patch = self._patch + np.sign(patch_gradients) * (1 - 2 * int(self.targeted)) * self.learning_rate
 
             if self.estimator.clip_values is not None:
                 self._patch = np.clip(

@@ -44,20 +44,40 @@ class LaneLossSeg(_Loss):
         self.weight = torch.Tensor(weight) if weight is not None else None
         self.ignore_index = ignore_index
        
-    def forward(self, inputs: Tensor, targets: Tensor, net):
-        prob_maps = torch.nn.functional.interpolate(inputs['out'], size=(288, 800), mode='bilinear', # TODO: set size dynamically
-                                                    align_corners=True)
-        
+    def forward(self, inputs: Tensor, targets: Tensor, input_sizes):
+        prob_maps = torch.nn.functional.interpolate(inputs['out'], size=input_sizes, mode='bilinear', align_corners=True)
+       
+        # self.save_prob_map_images(prob_maps.softmax(dim=1))
+
         targets[targets > 5] = 255  # Ignore extra lanes TODO: set dynamically
 
         # print(f"prob_maps shape: {prob_maps.shape}")
         # print(f"targets shape: {targets.shape}")
 
-        segmentation_loss = F.cross_entropy(prob_maps, targets, weight=self.weight.cuda(),
-                                            reduction=self.reduction)
+        if targets.shape is not prob_maps.shape:
+            targets = torch.nn.functional.interpolate(targets, size=input_sizes, mode='bilinear', align_corners=True) 
+
+        loss_type = 'cross_entropy_argmax'  # TODO: check what which loss makes the most sense, or if armgax is the right thing to use
+        if loss_type == 'cross_entropy_argmin':
+            segmentation_loss = F.cross_entropy(prob_maps, torch.argmin(targets, dim=1), weight=self.weight.cuda(), reduction=self.reduction, ignore_index=self.ignore_index)
+        elif loss_type == 'cross_entropy_argmax':
+            segmentation_loss = F.cross_entropy(prob_maps, torch.argmax(targets, dim=1), weight=self.weight.cuda(), reduction=self.reduction, ignore_index=self.ignore_index)
+        elif loss_type == 'nll':
+            segmentation_loss = -F.nll_loss(input=prob_maps, target=torch.argmax(targets, dim=1), reduction="mean")
+        else:
+            segmentation_loss = F.cross_entropy(prob_maps, targets, weight=self.weight.cuda(), reduction=self.reduction)
 
         return segmentation_loss
 
+    def save_prob_map_images(prob_maps):
+         # save prob map as image        
+        import numpy as np
+        for i, lane in enumerate(prob_maps[0]):
+            pred =lane.detach().cpu().numpy()
+            rescaled = (255.0/pred.max() * (pred - pred.min())).astype(np.uint8)
+            from PIL import Image
+            im = Image.fromarray(rescaled)
+            im.save(f'prob_map_image_{i}.png')
     
 # Loss function for SAD
 @LOSSES.register()
