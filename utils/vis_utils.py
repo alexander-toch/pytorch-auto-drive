@@ -2,10 +2,8 @@ import numpy as np
 import cv2
 import torch
 from PIL import Image
-from importmagician import import_from
-with import_from('./'):
-    from tools.culane_evaluation_py.culane_metric import culane_metric
-    from tools.tusimple_evaluation.lane import LaneEval
+from attack.pytorch_auto_drive.tools.culane_evaluation_py.culane_metric import culane_metric
+from attack.pytorch_auto_drive.tools.tusimple_evaluation.lane import LaneEval
 
 
 # Colors statics

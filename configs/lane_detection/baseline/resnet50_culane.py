@@ -1,14 +1,11 @@
-from importmagician import import_from
-with import_from('./'):
-    # Data pipeline
-    from configs.lane_detection.common.datasets.culane_seg import dataset
-    from configs.lane_detection.common.datasets.train_level0_288 import train_augmentation
-    from configs.lane_detection.common.datasets.test_288 import test_augmentation
+from attack.pytorch_auto_drive.configs.lane_detection.common.datasets.culane_seg import dataset
+from attack.pytorch_auto_drive.configs.lane_detection.common.datasets.train_level0_288 import train_augmentation
+from attack.pytorch_auto_drive.configs.lane_detection.common.datasets.test_288 import test_augmentation
 
-    # Optimization pipeline
-    from configs.lane_detection.common.optims.segloss_5class import loss
-    from configs.lane_detection.common.optims.sgd008 import optimizer
-    from configs.lane_detection.common.optims.ep12_poly_warmup500 import lr_scheduler
+# Optimization pipeline
+from attack.pytorch_auto_drive.configs.lane_detection.common.optims.segloss_5class import loss
+from attack.pytorch_auto_drive.configs.lane_detection.common.optims.sgd008 import optimizer
+from attack.pytorch_auto_drive.configs.lane_detection.common.optims.ep12_poly_warmup500 import lr_scheduler
 
 
 train = dict(

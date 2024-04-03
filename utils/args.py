@@ -1,7 +1,7 @@
 import os
 from importlib.machinery import SourceFileLoader
 
-from configs.statics import DEPRECATION_MAP, SHORTCUTS
+from attack.pytorch_auto_drive.configs.statics import DEPRECATION_MAP, SHORTCUTS
 try:
     from .common import warnings
 except ImportError:
