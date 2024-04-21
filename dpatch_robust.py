@@ -207,8 +207,8 @@ class MyRobustDPatch(RobustDPatch):
             patch_gradients_old = np.zeros_like(self._patch)
 
             for e_step in range(self.sample_size):
-                if e_step == 0 or (e_step + 1) % 100 == 0:
-                    logger.info("EOT Step: %i", e_step + 1)
+                # if e_step == 0 or (e_step + 1) % 100 == 0:
+                #     logger.info("EOT Step: %i", e_step + 1)
 
                 for i_batch in range(num_batches):
                     i_batch_start = i_batch * self.batch_size
