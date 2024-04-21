@@ -29,6 +29,7 @@ import math
 import random
 from typing import Dict, List, Optional, Tuple, Union, TYPE_CHECKING
 
+from matplotlib.pylab import f
 import numpy as np
 from tqdm.auto import trange
 
@@ -95,8 +96,8 @@ class MyRobustDPatch(RobustDPatch):
         """
 
         transformations: Dict[str, Union[float, int]] = {}
-        x_copy = x.copy()
-        patch_copy = patch.copy()
+        x_copy = x.copy() # (1, 288, 800, 3)
+        patch_copy = patch.copy() # (patch_size[0], patch_size[1], 3)
         x_patch = x.copy()
 
         if channels_first:
@@ -108,7 +109,7 @@ class MyRobustDPatch(RobustDPatch):
 
         # Apply patch:        
         x_1, y_1 = self.patch_location
-        x_2, y_2 = x_1 + patch_copy.shape[0], y_1 + patch_copy.shape[1]
+        x_2, y_2 = x_1 + patch_copy.shape[1], y_1 + patch_copy.shape[0]
 
         # print(f"x_copy shape: {x_copy.shape}")
         # print(f"patch_copy shape: {patch_copy.shape}")
@@ -146,8 +147,7 @@ class MyRobustDPatch(RobustDPatch):
         logger.debug("Transformations: %s", str(transformations))
 
         if self.targeted:
-            raise NotImplementedError("Targeted attack not supported (yet)")
-            # predictions = y_copy
+            predictions = y
         else:
             if channels_first:
                 x_copy = np.transpose(x_copy, (0, 3, 1, 2))
@@ -189,9 +189,6 @@ class MyRobustDPatch(RobustDPatch):
 
             y = convert_tf_to_pt(y=y, height=x.shape[1], width=x.shape[2])
 
-        if y is not None:
-            raise NotImplementedError("RobustDPatch attack does not support target labels for object detectors.")
-
         # if (  # pragma: no cover
         #     self.patch_location[0] + self.patch_shape[0] > image_height - self.crop_range[0]
         #     or self.patch_location[1] + self.patch_shape[1] > image_width - self.crop_range[1]
@@ -214,10 +211,10 @@ class MyRobustDPatch(RobustDPatch):
                     i_batch_start = i_batch * self.batch_size
                     i_batch_end = min((i_batch + 1) * self.batch_size, x.shape[0])
 
-                    if y is None:
-                        y_batch = y
+                    if self.targeted:
+                        y_batch = y['out'] # TODO: if batches should work, this needs to be fixed
                     else:
-                        y_batch = y[i_batch_start:i_batch_end]
+                        y_batch = y                  
 
                     # Sample and apply the random transformations:
                     patched_images, patch_target, transforms = self._augment_images_with_patch(
@@ -296,14 +293,13 @@ class MyRobustDPatch(RobustDPatch):
 
         # Undo rotations:
         rot90 = int((4 - transforms["rot90"]) % 4)
-        gradients = np.rot90(gradients, k=rot90, axes=(1, 2))
+        gradients = np.rot90(gradients, k=rot90, axes=(1, 2)) # shape: (1, 288, 800, 3) (1, H, W, C)
 
         # Account for cropping when considering the upper left point of the patch:
-        x_1 = self.patch_location[0] #- int(transforms["crop_x"])
-        y_1 = self.patch_location[1] #- int(transforms["crop_y"])
+        x_1, y_1 = self.patch_location
         if channels_first:
-            x_2 = x_1 + self.patch_shape[1]
-            y_2 = y_1 + self.patch_shape[2]
+            x_2 = x_1 + self.patch_shape[2]
+            y_2 = y_1 + self.patch_shape[1]
         else:
             x_2 = x_1 + self.patch_shape[0]
             y_2 = y_1 + self.patch_shape[1]
