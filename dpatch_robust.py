@@ -112,7 +112,7 @@ class MyRobustDPatch(RobustDPatch):
         x_2, y_2 = x_1 + patch_copy.shape[1], y_1 + patch_copy.shape[0]
 
         # print(f"x_copy shape: {x_copy.shape}")
-        # print(f"patch_copy shape: {patch_copy.shape}")
+        # # print(f"patch_copy shape: {patch_copy.shape}")
         # print(f"x_patch shape: {x_patch.shape}")
         # print(f"patch_location: {self.patch_location}")
         # print(f"x_1: {x_1}, y_1: {y_1}, x_2: {x_2}, y_2: {y_2}")
@@ -230,6 +230,10 @@ class MyRobustDPatch(RobustDPatch):
                         gradients, transforms, channels_first=self.estimator.channels_first
                     )
 
+
+                    # TODO: color optimization (optimise patch to look as much as possible like the original image OR grayscale)
+
+
                     patch_gradients = patch_gradients_old + np.sum(gradients, axis=0)
                     logger.debug(
                         "Gradient percentage diff: %f)",
@@ -258,6 +262,26 @@ class MyRobustDPatch(RobustDPatch):
                 )
 
             self._patch = self._patch + np.sign(patch_gradients) * (1 - 2 * int(self.targeted)) * self.learning_rate
+
+
+            # p = self._patch.transpose((1, 2, 0))
+            # import cv2
+            # p = cv2.cvtColor(p, cv2.COLOR_BGR2GRAY)
+
+            # # TODO: set to original pixel color
+            # # save numpy array and try in jupyter notebook?
+            
+            # # ret, thresh = cv2.threshold(p, 0, 10, cv2.THRESH_BINARY)
+            # # print(p.shape)
+            # # print(p[thresh == 10])
+            # # p[thresh == 10] = 128
+
+            # p = cv2.cvtColor(p, cv2.COLOR_GRAY2BGR)
+
+
+            # p = p.transpose((2, 0, 1))
+
+            # self._patch = p
 
             if self.estimator.clip_values is not None:
                 self._patch = np.clip(
