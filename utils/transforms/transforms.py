@@ -99,7 +99,7 @@ class Resize(object):
 
     @staticmethod
     def parse_resize(image, target, size_image, size_label, ori_size, ignore_x):
-        image = F.resize(image, size_image, interpolation=Image.LINEAR)
+        image = F.resize(image, size_image, interpolation=Image.BILINEAR)
         if target is None or isinstance(target, str):
             return image, target
         elif isinstance(target, dict):  # To keep BC
@@ -480,7 +480,7 @@ class RandomRotation(object):
 
     def __call__(self, image, target):
         angle = self.get_params(self.degrees)
-        image = F.rotate(image, angle, resample=Image.LINEAR, expand=self.expand, center=self.center, fill=0)
+        image = F.rotate(image, angle, resample=Image.BILINEAR, expand=self.expand, center=self.center, fill=0)
         if isinstance(target, dict):  # To keep BC
             if 'keypoints' in target.keys():
                 w, h = F._get_image_size(image)

@@ -5,7 +5,7 @@ from PIL import Image
 from importmagician import import_from
 with import_from('./'):
     from tools.culane_evaluation_py.culane_metric import culane_metric
-    from tools.tusimple_evaluation.lane import LaneEval
+    # from tools.tusimple_evaluation.lane import LaneEval
 
 
 # Colors statics
@@ -122,12 +122,12 @@ def lane_detection_visualize_batched(images, masks=None, keypoints=None,
                 if compare_gt_metric == 'culane':
                     tp, fp, fn, pred_ious, _ = culane_metric(keypoints[i], gt_keypoints[i])
                     keypoint_color = [BGR_GREEN if iou >= 0.5 else BGR_RED for iou in pred_ious]
-                elif compare_gt_metric == 'tusimple':
-                    x_pred = [keypoints[i][j][:, 0] for j in range(len(keypoints[i]))]
-                    x_gt = [gt_keypoints[i][j][:, 0] for j in range(len(gt_keypoints[i]))]
-                    y = gt_keypoints[i][0][:, 1].tolist()
-                    acc, fp, fn, match, _ = LaneEval.bench_with_matches(x_pred, x_gt, y)
-                    keypoint_color = [BGR_GREEN if m else BGR_RED for m in match]
+                # elif compare_gt_metric == 'tusimple':
+                #     x_pred = [keypoints[i][j][:, 0] for j in range(len(keypoints[i]))]
+                #     x_gt = [gt_keypoints[i][j][:, 0] for j in range(len(gt_keypoints[i]))]
+                #     y = gt_keypoints[i][0][:, 1].tolist()
+                #     acc, fp, fn, match, _ = LaneEval.bench_with_matches(x_pred, x_gt, y)
+                #     keypoint_color = [BGR_GREEN if m else BGR_RED for m in match]
 
             if style == 'point':
                 if gt_keypoints is not None:

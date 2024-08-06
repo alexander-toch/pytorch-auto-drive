@@ -102,7 +102,7 @@ class CULaneAsSegmentation(_StandardLaneDetectionDataset):
         self.mask_dir = os.path.join(root, 'laneseg_label_w16')
         self.output_prefix = './output'
         self.output_suffix = '.lines.txt'
-        self.image_suffix = '.jpg'
+        self.image_suffix = '.png'
         if not os.path.exists(self.output_prefix):
             os.makedirs(self.output_prefix)
 
