@@ -102,12 +102,8 @@ class BaseRunner(ABC):
     @staticmethod
     def write_mp_log(log_file, content, append=True):
         # Multi-processing log writing
-        import fcntl
         with open(log_file, 'a' if append else 'w') as f:
-            # Safe writing with locks
-            fcntl.flock(f, fcntl.LOCK_EX)
             f.write(content)
-            fcntl.flock(f, fcntl.LOCK_UN)
 
 
 class BaseTrainer(BaseRunner):

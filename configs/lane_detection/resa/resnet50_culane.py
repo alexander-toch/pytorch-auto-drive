@@ -49,6 +49,7 @@ test = dict(
     collate_fn=None,  # 'dict_collate_fn' for LSTR
     input_size=(288, 800),
     original_size=(590, 1640),
+    num_classes=5,
     max_lane=4,
     dataset_name='culane'
 )

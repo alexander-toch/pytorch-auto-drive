@@ -63,8 +63,8 @@ class _StandardLaneDetectionDataset(VisionDataset):
             self.images = [os.path.join(self.image_dir, x + self.image_suffix) for x in contents]
             self.masks = [os.path.join(self.output_prefix, x + self.output_suffix) for x in contents]
         elif self.test == 1:  # Val
-            self.images = [os.path.join(self.image_dir, x[:x.find(' ')] + self.image_suffix) for x in contents]
-            self.masks = [os.path.join(self.mask_dir, x[:x.find(' ')] + '.png') for x in contents]
+            self.images = [os.path.join(self.image_dir, x + self.image_suffix) for x in contents]
+            self.masks = [os.path.join(self.mask_dir, x + self.image_suffix) for x in contents]
         else:  # Train
             self.images = [os.path.join(self.image_dir, x[:x.find(' ')] + self.image_suffix) for x in contents]
             self.masks = [os.path.join(self.mask_dir, x[:x.find(' ')] + '.png') for x in contents]

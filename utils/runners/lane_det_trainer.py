@@ -27,6 +27,10 @@ class LaneDetTrainer(BaseTrainer):
 
         # Training
         best_validation = 0
+
+        print(f"Training for {self._cfg['num_epochs']} epochs with {len(self.dataloader)} steps per epoch. Total input/label pairs: {len(self.dataloader.dataset)}")
+
+
         while epoch < self._cfg['num_epochs']:
             self.model.train()
             if self._cfg['distributed']:
