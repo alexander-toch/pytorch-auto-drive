@@ -19,7 +19,7 @@ try:
     print('Successfully complied line nms for LaneATT.')
 except:
     from ...common import warnings
-    warnings.warn('Can\'t complie line nms op for LaneATT. Set verbose=True for load in /utils/csrc/apis.py L9 for details.')
+    # warnings.warn('Can\'t complie line nms op for LaneATT. Set verbose=True for load in /utils/csrc/apis.py L9 for details.')
 from ..builder import MODELS
 
 

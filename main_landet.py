@@ -26,7 +26,8 @@ if __name__ == '__main__':
                 'If you encounter related problems in training, try reduce the number of workers by --workers, ' \
                 'or switch into file_system mode at Line 8.'.format(dest, rlimit[1]))
     except ModuleNotFoundError:
-        warnings.warn('Are you using Windows? Linux is recommended.')
+        # warnings.warn('Are you using Windows? Linux is recommended.')
+        pass
 
     # Settings (user input > config > argparse defaults)
     parser = argparse.ArgumentParser(description='PytorchAutoDrive Lane Detection', conflict_handler='resolve')

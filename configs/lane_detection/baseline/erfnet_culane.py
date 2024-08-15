@@ -48,8 +48,9 @@ test = dict(
     thresh=0.3,
     collate_fn=None,  # 'dict_collate_fn' for LSTR
     input_size=(288, 800),
-    original_size=(590, 1640),
+    original_size=(288, 800), # original culane 590, 1640
     max_lane=4,
+    num_classes=5,
     dataset_name='culane'
 )
 

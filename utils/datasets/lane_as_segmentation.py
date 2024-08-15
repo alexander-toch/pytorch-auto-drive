@@ -1,6 +1,7 @@
 import os
 import torch
 from PIL import Image
+import cv2
 from torchvision.datasets import VisionDataset
 
 from .builder import DATASETS
@@ -34,7 +35,8 @@ class _StandardLaneDetectionDataset(VisionDataset):
         # Return x (input image) & y (mask image, i.e. pixel-wise supervision) & lane existence (a list),
         # if not just testing,
         # else just return input image.
-        img = Image.open(self.images[index]).convert('RGB')
+        # img = Image.open(self.images[index]).convert('RGB')
+        img = cv2.imread(self.images[index], cv2.IMREAD_UNCHANGED)
         if self.test == 2:
             target = self.masks[index]
         elif self.test == 1:
@@ -102,7 +104,7 @@ class CULaneAsSegmentation(_StandardLaneDetectionDataset):
         self.mask_dir = os.path.join(root, 'laneseg_label_w16')
         self.output_prefix = './output'
         self.output_suffix = '.lines.txt'
-        self.image_suffix = '.png'
+        self.image_suffix = '.exr' # labels are pngs, images are exrs
         if not os.path.exists(self.output_prefix):
             os.makedirs(self.output_prefix)
 

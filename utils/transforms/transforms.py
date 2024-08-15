@@ -344,7 +344,11 @@ class ToTensor(object):
         self.reverse_channels = reverse_channels
 
     def __call__(self, image, target=None):
-        image = self._pil_to_tensor(image)
+
+        if isinstance(image, np.ndarray):
+            image = torch.from_numpy(image.transpose((2, 0, 1)))
+        else:
+            image = self._pil_to_tensor(image)
         target = self.label_to_tensor(target)
 
         return image, target

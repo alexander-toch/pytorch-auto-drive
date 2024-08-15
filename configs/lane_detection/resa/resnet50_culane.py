@@ -2,7 +2,7 @@ from importmagician import import_from
 with import_from('./'):
     # Data pipeline
     from configs.lane_detection.common.datasets.culane_seg import dataset
-    from configs.lane_detection.common.datasets.train_level0_288 import train_augmentation
+    from configs.lane_detection.common.datasets.culane_no_aug import train_augmentation
     from configs.lane_detection.common.datasets.test_288 import test_augmentation
 
     # Optimization pipeline
@@ -48,7 +48,7 @@ test = dict(
     thresh=0.3,
     collate_fn=None,  # 'dict_collate_fn' for LSTR
     input_size=(288, 800),
-    original_size=(590, 1640),
+    original_size=(288, 800), # original culane 590, 1640
     num_classes=5,
     max_lane=4,
     dataset_name='culane'

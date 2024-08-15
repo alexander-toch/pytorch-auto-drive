@@ -113,7 +113,7 @@ class LaneDetTester(BaseTester):
 
         acc_global, acc, iu = conf_mat.compute()
         print((
-            'global correct: {:.2f}\n'
+            'global correct / accuracy: {:.2f}\n'
             'average row correct: {}\n'
             'IoU: {}\n'
             'mean IoU: {:.2f}'
