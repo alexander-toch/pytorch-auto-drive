@@ -1,0 +1,7 @@
+python main_landet.py --fastval --config=configs/lane_detection/resa/resnet50_culane.py --mixed-precision --checkpoint='../resnet50_resa_culane_20211016.pt'
+python main_landet.py --fastval --config=configs/lane_detection/baseline/resnet50_culane.py --mixed-precision --checkpoint='../resnet50_baseline_culane_custom_20240815.pt'
+python main_landet.py --fastval --config=configs/lane_detection/baseline/resnet50_culane.py --mixed-precision --checkpoint='../resnet50_baseline_culane_20210308.pt'
+python main_landet.py --fastval --config=configs/lane_detection/baseline/erfnet_culane.py --mixed-precision --checkpoint='../erfnet_baseline_culane_custom_20240815.pt'
+python main_landet.py --fastval --config=configs/lane_detection/baseline/erfnet_culane.py --mixed-precision --checkpoint='../erfnet_baseline_culane_20210204.pt'
+python main_landet.py --fastval --config=configs/lane_detection/scnn/resnet50_culane.py --mixed-precision --checkpoint='../resnet50_scnn_culane_custom_20240815.pt'
+python main_landet.py --fastval --config=configs/lane_detection/scnn/resnet50_culane.py --mixed-precision --checkpoint='../resnet50_scnn_culane_20210311.pt'
